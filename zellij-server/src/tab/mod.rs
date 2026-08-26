@@ -23,7 +23,7 @@ use zellij_utils::data::{
 use zellij_utils::errors::prelude::*;
 use zellij_utils::input::command::RunCommand;
 use zellij_utils::input::mouse::MouseEvent;
-use zellij_utils::input::options::DEFAULT_WORD_SEPARATORS;
+use zellij_utils::input::options::{Clipboard, DEFAULT_WORD_SEPARATORS};
 use zellij_utils::position::Position;
 use zellij_utils::position::{Column, Line};
 use zellij_utils::shared::clean_string_from_control_and_linebreak;
@@ -4433,6 +4433,30 @@ impl Tab {
             .ok_or_else(|| anyhow!("no active pane for client {client_id}"))
             .with_context(err_context)?;
         self.paste_to_pane_id(bytes, active_pane_id, completion)
+    }
+
+    pub fn request_clipboard_paste(&mut self, pane_id: PaneId, client_id: ClientId) {
+        let selection = match self.clipboard_provider {
+            ClipboardProvider::Osc52(Clipboard::Primary) => 'p',
+            ClipboardProvider::Osc52(Clipboard::System) => 'c',
+            _ => {
+                #[cfg(not(target_os = "macos"))]
+                {
+                    'p'
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    'c'
+                }
+            },
+        };
+        let _ = self
+            .senders
+            .send_to_screen(ScreenInstruction::RequestClipboardPaste {
+                pane_id,
+                client_id,
+                selection,
+            });
     }
 
     pub fn write_to_pane_id(

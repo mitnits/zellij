@@ -562,6 +562,11 @@ pub enum ScreenInstruction {
         pane_id: PaneId,
         query: crate::host_query::HostQuery,
     },
+    RequestClipboardPaste {
+        pane_id: PaneId,
+        client_id: ClientId,
+        selection: char,
+    },
     NestedSessionMessageFromPane {
         pane_id: PaneId,
         message: NestedSessionMessage,
@@ -1107,6 +1112,9 @@ impl From<&ScreenInstruction> for ScreenContext {
             },
             ScreenInstruction::SetSixelSupport { .. } => ScreenContext::SetSixelSupport,
             ScreenInstruction::ForwardHostQuery { .. } => ScreenContext::ForwardHostQuery,
+            ScreenInstruction::RequestClipboardPaste { .. } => {
+                ScreenContext::RequestClipboardPaste
+            },
             ScreenInstruction::NestedSessionMessageFromPane { .. } => {
                 ScreenContext::NestedSessionMessageFromPane
             },
@@ -2806,6 +2814,9 @@ impl Screen {
             }
             return self.enqueue_clipboard_forward(pane_id, query);
         }
+        if let crate::host_query::HostQuery::PasteToPane { .. } = query {
+            return self.enqueue_clipboard_forward(pane_id, query);
+        }
         let token = self.next_forward_token;
         // Skip over the reserved sentinel (0) on wrap; allocate a fresh
         // u32 for every forward.
@@ -2882,12 +2893,34 @@ impl Screen {
         if let Some(PendingForwardEntry { pane_id, query }) =
             self.pending_clipboard_forwards.remove(&token)
         {
-            let payload = if reply_bytes.is_empty() {
-                query.empty_reply_bytes()
-            } else {
-                reply_bytes
-            };
-            self.resume_pane_after_forward(pane_id, payload)?;
+            match query {
+                crate::host_query::HostQuery::ClipboardContent { .. } => {
+                    let payload = if reply_bytes.is_empty() {
+                        query.empty_reply_bytes()
+                    } else {
+                        reply_bytes
+                    };
+                    self.resume_pane_after_forward(pane_id, payload)?;
+                },
+                crate::host_query::HostQuery::PasteToPane { .. } => {
+                    if !reply_bytes.is_empty() {
+                        if let Some(decoded_bytes) = Self::parse_osc52_reply_payload(&reply_bytes) {
+                            if !decoded_bytes.is_empty() {
+                                let all_tabs = self.get_tabs_mut();
+                                for tab in all_tabs.values_mut() {
+                                    if tab.has_pane_with_pid(&pane_id) {
+                                        tab.paste_to_pane_id(decoded_bytes, pane_id, None)
+                                            .non_fatal();
+                                        break;
+                                    }
+                                }
+                                self.render(None)?;
+                            }
+                        }
+                    }
+                },
+                _ => {},
+            }
         }
         self.clipboard_forward_in_flight_token = None;
         while let Some(next) = self.clipboard_forward_queue.pop_front() {
@@ -4115,7 +4148,9 @@ impl Screen {
                     Vec::new()
                 }
             },
-            HostQuery::ClipboardContent { .. } => query.empty_reply_bytes(),
+            HostQuery::ClipboardContent { .. } | HostQuery::PasteToPane { .. } => {
+                query.empty_reply_bytes()
+            },
             // Should not reach here: ColorPaletteMode short-circuits in
             // `forward_host_query` before any cache-fallback path runs.
             HostQuery::ColorPaletteMode => match self.effective_host_terminal_theme_mode() {
@@ -4124,6 +4159,28 @@ impl Screen {
             },
         }
     }
+
+fn parse_osc52_reply_payload(reply_bytes: &[u8]) -> Option<Vec<u8>> {
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+    use base64::engine::Engine as _;
+
+    let s = std::str::from_utf8(reply_bytes).ok()?;
+    let after_prefix = if let Some(idx) = s.find("52;") {
+        &s[idx + 3..]
+    } else {
+        return None;
+    };
+    let mut parts = after_prefix.splitn(2, ';');
+    let _selection = parts.next()?;
+    let rest = parts.next()?;
+    let base64_str = rest.trim_matches(|c: char| {
+        c == '\x1b' || c == '\\' || c == '\x07' || c.is_whitespace()
+    });
+    if base64_str.is_empty() {
+        return None;
+    }
+    BASE64_STANDARD.decode(base64_str).ok()
+}
 
     pub fn render(&mut self, plugin_render_assets: Option<Vec<PluginRenderAsset>>) -> Result<()> {
         // here we schedule the RenderToClients background job which debounces renders every 10ms
@@ -10056,6 +10113,17 @@ pub(crate) fn screen_thread_main(
                 screen.update_sixel_support(client_id, supported);
             },
             ScreenInstruction::ForwardHostQuery { pane_id, query } => {
+                screen.forward_host_query(pane_id, query);
+            },
+            ScreenInstruction::RequestClipboardPaste {
+                pane_id,
+                client_id: _,
+                selection,
+            } => {
+                let query = crate::host_query::HostQuery::PasteToPane {
+                    selection,
+                    terminator: crate::host_query::OscTerminator::St,
+                };
                 screen.forward_host_query(pane_id, query);
             },
             ScreenInstruction::NestedSessionMessageFromPane { pane_id, message } => {

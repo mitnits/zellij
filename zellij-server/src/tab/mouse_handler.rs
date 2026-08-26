@@ -187,6 +187,9 @@ enum MouseAction {
         pane_id: PaneId,
         event: MouseEvent,
     },
+    PasteSelection {
+        pane_id: PaneId,
+    },
     FrameIntercepted {
         pane_id: PaneId,
     },
@@ -887,6 +890,10 @@ impl MouseHandler {
             MouseAction::SendToTerminal { pane_id, event } => {
                 Self::execute_send_to_terminal(tab, pane_id, event, client_id)
             },
+            MouseAction::PasteSelection { pane_id } => {
+                tab.request_clipboard_paste(pane_id, client_id);
+                Ok(MouseEffect::state_changed())
+            },
             MouseAction::FrameIntercepted { pane_id: _ } => {
                 tab.set_force_render();
                 Ok(MouseEffect::state_changed())
@@ -1553,10 +1560,17 @@ impl MouseHandler {
             };
             let is_active_pane = Some(pane_id) == ctx.active_pane_id;
             if is_active_pane {
-                return Ok(MouseAction::SendToTerminal {
-                    pane_id,
-                    event: *event,
-                });
+                if let Some(details) = &ctx.clicked_pane {
+                    if details.terminal_wants_mouse {
+                        return Ok(MouseAction::SendToTerminal {
+                            pane_id,
+                            event: *event,
+                        });
+                    }
+                }
+                if event.event_type == MouseEventType::Press {
+                    return Ok(MouseAction::PasteSelection { pane_id });
+                }
             }
             return Ok(MouseAction::NoAction);
         }

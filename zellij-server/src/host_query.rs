@@ -60,6 +60,10 @@ pub enum HostQuery {
         selection: char,
         terminator: OscTerminator,
     },
+    PasteToPane {
+        selection: char,
+        terminator: OscTerminator,
+    },
     /// `CSI ? 996 n` — query the host terminal's color-palette theme
     /// mode (light or dark). NOT forwarded to the host. Zellij has
     /// already queried the host once at startup (via the client's
@@ -95,6 +99,10 @@ impl HostQuery {
                 v
             },
             HostQuery::ClipboardContent {
+                selection,
+                terminator,
+            }
+            | HostQuery::PasteToPane {
                 selection,
                 terminator,
             } => {

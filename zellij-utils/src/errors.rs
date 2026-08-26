@@ -321,6 +321,7 @@ pub enum ScreenContext {
     SetKittyGraphicsSupport,
     SetSixelSupport,
     ForwardHostQuery,
+    RequestClipboardPaste,
     NestedSessionMessageFromPane,
     NestedGuestPingTick,
     NestedSessionMessageFromHost,

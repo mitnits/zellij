@@ -9230,6 +9230,40 @@ fn a_real_clipboard_reply_is_written_to_the_pane_verbatim() {
 }
 
 #[test]
+fn paste_to_pane_decodes_osc52_and_pastes_into_pane() {
+    let size = Size { cols: 80, rows: 20 };
+    let (mut screen, capture) = create_new_screen_with_forward_capture(size);
+    new_tab(&mut screen, 1, 0);
+    let _ = capture.drain_pty_writes();
+    let pane_id = PaneId::Terminal(1);
+    let token = screen.forward_host_query(
+        pane_id,
+        HostQuery::PasteToPane {
+            selection: 'p',
+            terminator: OscTerminator::St,
+        },
+    );
+    let forwards = capture.drain_forward_queries_with_async();
+    assert_eq!(
+        forwards,
+        vec![(token, b"\x1b]52;p;?\x1b\\".to_vec(), true)],
+    );
+
+    let reply = b"\x1b]52;p;aGVsbG8gd29ybGQ=\x1b\\".to_vec();
+    screen
+        .handle_forwarded_reply_from_host(token, reply)
+        .expect("handler must not fail");
+
+    let pty_writes = capture.drain_pty_writes();
+    assert_eq!(pty_writes.len(), 3);
+    assert_eq!(pty_writes[0], (vec![], 1)); // bracketed paste begin (filtered because bracketed paste mode is off by default)
+    assert_eq!(pty_writes[1], (b"hello world".to_vec(), 1)); // decoded pasted text
+    assert_eq!(pty_writes[2], (vec![], 1)); // bracketed paste end
+    assert!(screen.clipboard_forward_in_flight_token.is_none());
+    assert!(screen.pending_clipboard_forwards.is_empty());
+}
+
+#[test]
 fn an_unanswered_clipboard_read_resolves_as_an_empty_clipboard() {
     let size = Size { cols: 80, rows: 20 };
     let (mut screen, capture) = create_new_screen_with_forward_capture(size);
