@@ -17,7 +17,8 @@ use crate::line::tab_line;
 use crate::tab::tab_style;
 use crate::tooltip::TooltipRenderer;
 
-static ARROW_SEPARATOR: &str = "";
+pub static TAB_LEFT_SEPARATOR: &str = "◢";
+pub static TAB_RIGHT_SEPARATOR: &str = "◣";
 
 const CONFIG_IS_TOOLTIP: &str = "is_tooltip";
 const CONFIG_TOGGLE_TOOLTIP_KEY: &str = "tooltip";

@@ -1,7 +1,7 @@
 use ansi_term::ANSIStrings;
 use unicode_width::UnicodeWidthStr;
 
-use crate::{LinePart, TabRenderData, ARROW_SEPARATOR};
+use crate::{LinePart, TabRenderData, TAB_LEFT_SEPARATOR, TAB_RIGHT_SEPARATOR};
 use zellij_tile::prelude::*;
 use zellij_tile_utils::style;
 
@@ -261,8 +261,8 @@ impl TabLinePopulator {
     }
 
     fn create_styled_indicator(&self, text: String, tab_index: usize) -> LinePart {
-        let separator = tab_separator(self.capabilities);
-        let text_len = text.width() + 2 * separator.width();
+        let (left_sep, right_sep) = tab_separator(self.capabilities);
+        let text_len = text.width() + left_sep.width() + right_sep.width();
 
         let colors = IndicatorColors {
             text: self.palette.ribbon_unselected.base,
@@ -277,9 +277,9 @@ impl TabLinePopulator {
         };
 
         let styled_parts = [
-            style!(colors.separator, colors.background).paint(separator),
+            style!(colors.background, colors.separator).paint(left_sep),
             text_style.paint(text),
-            style!(colors.background, colors.separator).paint(separator),
+            style!(colors.background, colors.separator).paint(right_sep),
         ];
 
         LinePart {
@@ -679,40 +679,40 @@ impl RightSideElementsBuilder {
         mode: InputMode,
         is_dirty: bool,
         colors: &SwapLayoutColors,
-        separator: &str,
+        (left_sep, right_sep): (&str, &str),
     ) -> (String, String, String) {
         if self.dimmed {
             let text_style = style!(colors.bg, colors.fg).italic();
             return (
-                style!(colors.bg, colors.fg).paint(separator).to_string(),
+                style!(colors.fg, colors.bg).paint(left_sep).to_string(),
                 text_style.paint(layout_name).to_string(),
-                style!(colors.fg, colors.bg).paint(separator).to_string(),
+                style!(colors.fg, colors.bg).paint(right_sep).to_string(),
             );
         }
         match mode {
             InputMode::Locked => (
-                style!(colors.bg, colors.fg).paint(separator).to_string(),
+                style!(colors.fg, colors.bg).paint(left_sep).to_string(),
                 style!(colors.bg, colors.fg)
                     .italic()
                     .paint(layout_name)
                     .to_string(),
-                style!(colors.fg, colors.bg).paint(separator).to_string(),
+                style!(colors.fg, colors.bg).paint(right_sep).to_string(),
             ),
             _ if is_dirty => (
-                style!(colors.bg, colors.fg).paint(separator).to_string(),
+                style!(colors.fg, colors.bg).paint(left_sep).to_string(),
                 style!(colors.bg, colors.fg)
                     .bold()
                     .paint(layout_name)
                     .to_string(),
-                style!(colors.fg, colors.bg).paint(separator).to_string(),
+                style!(colors.fg, colors.bg).paint(right_sep).to_string(),
             ),
             _ => (
-                style!(colors.bg, colors.green).paint(separator).to_string(),
+                style!(colors.green, colors.bg).paint(left_sep).to_string(),
                 style!(colors.bg, colors.green)
                     .bold()
                     .paint(layout_name)
                     .to_string(),
-                style!(colors.green, colors.bg).paint(separator).to_string(),
+                style!(colors.green, colors.bg).paint(right_sep).to_string(),
             ),
         }
     }
@@ -858,10 +858,10 @@ impl TabLineBuilder {
     }
 }
 
-pub fn tab_separator(capabilities: PluginCapabilities) -> &'static str {
+pub fn tab_separator(capabilities: PluginCapabilities) -> (&'static str, &'static str) {
     if !capabilities.arrow_fonts {
-        ARROW_SEPARATOR
+        (TAB_LEFT_SEPARATOR, TAB_RIGHT_SEPARATOR)
     } else {
-        ""
+        ("", "")
     }
 }

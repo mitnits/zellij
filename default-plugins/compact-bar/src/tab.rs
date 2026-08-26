@@ -26,11 +26,10 @@ pub fn render_tab(
     tab: &TabInfo,
     is_alternate_tab: bool,
     palette: Styling,
-    separator: &str,
+    (left_sep, right_sep): (&str, &str),
     dimmed: bool,
 ) -> LinePart {
     let focused_clients = tab.other_focused_clients.as_slice();
-    let separator_width = separator.width();
     let alternate_tab_color = if is_alternate_tab {
         palette.ribbon_unselected.emphasis_1
     } else {
@@ -65,12 +64,12 @@ pub fn render_tab(
     } else {
         style!(foreground_color, background_color).bold()
     };
-    let left_separator = style!(separator_fill_color, background_color).paint(separator);
-    let mut tab_text_len = text.width() + (separator_width * 2) + 2; // + 2 for padding
+    let left_separator = style!(background_color, separator_fill_color).paint(left_sep);
+    let mut tab_text_len = text.width() + left_sep.width() + right_sep.width() + 2; // + 2 for padding
 
     let tab_styled_text = text_style.paint(format!(" {} ", text));
 
-    let right_separator = style!(background_color, separator_fill_color).paint(separator);
+    let right_separator = style!(background_color, separator_fill_color).paint(right_sep);
     let tab_styled_text = if !focused_clients.is_empty() {
         let (cursor_section, extra_length) =
             cursors(focused_clients, palette.multiplayer_user_colors);

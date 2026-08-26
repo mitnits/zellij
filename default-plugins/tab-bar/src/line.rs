@@ -2,7 +2,7 @@ use ansi_term::ANSIStrings;
 use std::collections::BTreeMap;
 use unicode_width::UnicodeWidthStr;
 
-use crate::{LinePart, ARROW_SEPARATOR};
+use crate::{LinePart, TAB_LEFT_SEPARATOR, TAB_RIGHT_SEPARATOR};
 use zellij_tile::prelude::actions::Action;
 use zellij_tile::prelude::*;
 use zellij_tile_utils::style;
@@ -123,7 +123,7 @@ fn populate_tabs_in_tab_line(
 fn left_more_message(
     tab_count_to_the_left: usize,
     palette: Styling,
-    separator: &str,
+    (left_separator, right_separator): (&str, &str),
     tab_index: usize,
     dimmed: bool,
 ) -> LinePart {
@@ -135,9 +135,8 @@ fn left_more_message(
     } else {
         " ← +many ".to_string()
     };
-    // 238
     // chars length plus separator length on both sides
-    let more_text_len = more_text.width() + 2 * separator.width();
+    let more_text_len = more_text.width() + left_separator.width() + right_separator.width();
     let (text_color, sep_color) = (
         palette.ribbon_unselected.base,
         palette.text_unselected.background,
@@ -147,9 +146,9 @@ fn left_more_message(
     } else {
         style!(text_color, palette.ribbon_unselected.background).bold()
     };
-    let left_separator = style!(sep_color, palette.ribbon_unselected.background).paint(separator);
+    let left_separator = style!(palette.ribbon_unselected.background, sep_color).paint(left_separator);
     let more_styled_text = text_style.paint(more_text);
-    let right_separator = style!(palette.ribbon_unselected.background, sep_color).paint(separator);
+    let right_separator = style!(palette.ribbon_unselected.background, sep_color).paint(right_separator);
     let more_styled_text =
         ANSIStrings(&[left_separator, more_styled_text, right_separator]).to_string();
     LinePart {
@@ -162,7 +161,7 @@ fn left_more_message(
 fn right_more_message(
     tab_count_to_the_right: usize,
     palette: Styling,
-    separator: &str,
+    (left_separator, right_separator): (&str, &str),
     tab_index: usize,
     dimmed: bool,
 ) -> LinePart {
@@ -175,7 +174,7 @@ fn right_more_message(
         " +many → ".to_string()
     };
     // chars length plus separator length on both sides
-    let more_text_len = more_text.width() + 2 * separator.width();
+    let more_text_len = more_text.width() + left_separator.width() + right_separator.width();
     let (text_color, sep_color) = (
         palette.ribbon_unselected.base,
         palette.text_unselected.background,
@@ -185,9 +184,9 @@ fn right_more_message(
     } else {
         style!(text_color, palette.ribbon_unselected.background).bold()
     };
-    let left_separator = style!(sep_color, palette.ribbon_unselected.background).paint(separator);
+    let left_separator = style!(palette.ribbon_unselected.background, sep_color).paint(left_separator);
     let more_styled_text = text_style.paint(more_text);
-    let right_separator = style!(palette.ribbon_unselected.background, sep_color).paint(separator);
+    let right_separator = style!(palette.ribbon_unselected.background, sep_color).paint(right_separator);
     let more_styled_text =
         ANSIStrings(&[left_separator, more_styled_text, right_separator]).to_string();
     LinePart {
@@ -282,11 +281,11 @@ fn tab_line_prefix(
     (parts, breadcrumb_range)
 }
 
-pub fn tab_separator(capabilities: PluginCapabilities) -> &'static str {
+pub fn tab_separator(capabilities: PluginCapabilities) -> (&'static str, &'static str) {
     if !capabilities.arrow_fonts {
-        ARROW_SEPARATOR
+        (TAB_LEFT_SEPARATOR, TAB_RIGHT_SEPARATOR)
     } else {
-        ""
+        ("", "")
     }
 }
 
@@ -504,8 +503,7 @@ fn new_tab_button_line_part(
     background_color: PaletteColor,
     dimmed: bool,
 ) -> LinePart {
-    let separator = tab_separator(capabilities);
-    let separator_width = separator.width();
+    let (left_sep, right_sep) = tab_separator(capabilities);
     let foreground_color = palette.ribbon_unselected.base;
     let separator_fill_color = palette.text_unselected.background;
     let background_color = if dimmed {
@@ -518,12 +516,12 @@ fn new_tab_button_line_part(
     } else {
         style!(foreground_color, background_color).bold()
     };
-    let left_separator = style!(separator_fill_color, background_color).paint(separator);
-    let right_separator = style!(background_color, separator_fill_color).paint(separator);
+    let left_separator = style!(background_color, separator_fill_color).paint(left_sep);
+    let right_separator = style!(background_color, separator_fill_color).paint(right_sep);
     let text = "+";
     let styled_text = text_style.paint(format!(" {} ", text));
     let part = ANSIStrings(&[left_separator, styled_text, right_separator]).to_string();
-    let len = text.width() + (separator_width * 2) + 2;
+    let len = text.width() + left_sep.width() + right_sep.width() + 2;
     LinePart {
         part,
         len,

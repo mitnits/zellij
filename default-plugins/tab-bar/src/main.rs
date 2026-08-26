@@ -42,7 +42,8 @@ struct State {
     outstanding_hint_timeouts: usize,
 }
 
-static ARROW_SEPARATOR: &str = "";
+pub static TAB_LEFT_SEPARATOR: &str = "◢";
+pub static TAB_RIGHT_SEPARATOR: &str = "◣";
 
 register_plugin!(State);
 
